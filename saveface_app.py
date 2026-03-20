@@ -12,7 +12,7 @@ import re
 # ──────────────────────────────────────────────
 st.set_page_config(
     page_title="SaveFace.io",
-    page_icon="",
+    page_icon="favicon.svg",   # ← change this
     layout="wide",
     initial_sidebar_state="collapsed",
 )
