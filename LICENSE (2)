@@ -1,0 +1,52 @@
+SaveFace Proprietary License
+
+Copyright (c) 2026 Laila Al Rawi. All rights reserved.
+
+TERMS AND CONDITIONS
+
+1. DEFINITIONS
+   "Software" refers to the SaveFace application, including all source code,
+   documentation, algorithms, and associated files in this repository.
+   "Author" refers to Laila Al Rawi, the sole copyright holder.
+
+2. SOURCE VISIBILITY
+   The source code of this Software is made available for viewing and
+   educational reference purposes only. Visibility of the source code does
+   not constitute a grant of any rights to use, copy, modify, or distribute
+   the Software.
+
+3. PERMITTED USES
+   You MAY:
+   - View and read the source code for personal educational purposes
+   - Reference this project in academic or portfolio contexts with attribution
+   - Fork the repository solely for the purpose of submitting pull requests
+     or bug reports to the Author
+
+4. PROHIBITED USES
+   You MAY NOT, without explicit prior written permission from the Author:
+   - Use the Software or any portion of it in any commercial product or service
+   - Copy, reproduce, distribute, or sublicense the Software
+   - Modify, adapt, or create derivative works based on the Software
+   - Deploy or host the Software for public or private use outside of
+     direct collaboration with the Author
+   - Use the Software's name, branding, or design in any external project
+
+5. COMMERCIAL LICENSING
+   If you are interested in licensing SaveFace for commercial use, integration,
+   or partnership, please contact: info@saveface.io
+
+6. ATTRIBUTION
+   Any permitted reference to this Software must include clear attribution:
+   "SaveFace by Laila Al Rawi (saveface.io)"
+
+7. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED. THE AUTHOR SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR
+   OTHER LIABILITY ARISING FROM THE USE OF OR INABILITY TO USE THE SOFTWARE.
+
+8. TERMINATION
+   Any breach of these terms immediately terminates your rights under this
+   license. The Author reserves the right to pursue legal remedies for
+   unauthorized use of the Software.
+
+For permissions beyond the scope of this license, contact: info@saveface.io
