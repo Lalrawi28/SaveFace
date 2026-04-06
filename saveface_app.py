@@ -10,9 +10,27 @@ import re
 # ──────────────────────────────────────────────
 # PAGE CONFIG
 # ──────────────────────────────────────────────
+# Write favicon inline so it works on Streamlit Cloud without a separate file
+import os, pathlib
+_favicon_svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#1a1714"/>
+  <rect x="8" y="8" width="48" height="48" rx="4" fill="none" stroke="#C4A484" stroke-width="0.8" opacity="0.5"/>
+  <text x="32" y="50"
+        text-anchor="middle"
+        font-family="Georgia, serif"
+        font-size="36"
+        font-weight="300"
+        font-style="italic"
+        fill="#C4A484"
+        letter-spacing="-2">SF</text>
+</svg>"""
+_favicon_path = pathlib.Path("favicon.svg")
+if not _favicon_path.exists():
+    _favicon_path.write_text(_favicon_svg)
+
 st.set_page_config(
     page_title="SaveFace.io",
-    page_icon="favicon.svg",   # ← change this
+    page_icon="favicon.svg",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -521,6 +539,27 @@ def _search_incidecoder(query: str) -> list[dict]:
     except Exception:
         return []
 
+def search_incidecoder_suggestions(query: str) -> list[str]:
+    """Return up to 8 product name suggestions from INCIdecoder for autocomplete."""
+    if not query or len(query) < 3:
+        return []
+    try:
+        r = requests.get(
+            "https://incidecoder.com/search",
+            params={"query": query},
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=6,
+        )
+        soup = BeautifulSoup(r.content, "html.parser")
+        names = []
+        for a in soup.select("a[href*='/products/']"):
+            name = a.get_text(strip=True)
+            if name and name not in names:
+                names.append(name)
+        return names[:8]
+    except Exception:
+        return []
+
 def _pick_best_match(query: str, candidates: list[dict]) -> dict | None:
     """Use Claude to pick the most likely product match from search results."""
     if not candidates:
@@ -681,12 +720,15 @@ left, right = st.columns([1, 1], gap="large")
 
 with left:
     st.markdown("##### Skin Conditions")
-    conditions = st.multiselect(
+    conditions_display = {c.title(): c for c in RED_FLAGS.keys()}
+    selected_display = st.multiselect(
         "Which conditions to screen for?",
-        options=list(RED_FLAGS.keys()),
-        default=["acne", "eczema"],
+        options=list(conditions_display.keys()),
+        default=[],
+        placeholder="Choose condition(s)...",
         label_visibility="collapsed",
     )
+    conditions = [conditions_display[d] for d in selected_display]
 
     st.markdown("##### Product Input")
     input_mode = st.radio("How would you like to enter the product?",
@@ -697,12 +739,34 @@ with left:
     manual_list  = ""
 
     if input_mode == "Search by product name":
-        product_name = st.text_input(
+        # Autocomplete via selectbox when suggestions exist, plain input otherwise
+        raw_query = st.text_input(
             "Product name",
             placeholder="e.g. CeraVe Moisturizing Cream",
             label_visibility="collapsed",
+            key="product_search_input",
         )
-        st.caption("We'll pull the ingredient list from INCIdecoder automatically.")
+        if raw_query and len(raw_query) >= 3:
+            with st.spinner(""):
+                suggestions = search_incidecoder_suggestions(raw_query)
+            if suggestions:
+                # Prepend the raw query so user can keep what they typed
+                options = [raw_query] + [s for s in suggestions if s.lower() != raw_query.lower()]
+                chosen = st.selectbox(
+                    "Suggestions",
+                    options=options,
+                    label_visibility="collapsed",
+                    key="product_suggestion",
+                )
+                product_name = chosen
+            else:
+                product_name = raw_query
+        else:
+            product_name = raw_query
+
+        st.caption("Select a suggestion or press Analyze to search.")
+        # Enter key triggers run via form
+        run_on_enter = st.session_state.get("product_search_input", "") != "" and                        st.session_state.get("_last_query", "") != st.session_state.get("product_search_input", "")
     else:
         manual_list = st.text_area(
             "Paste ingredient list",
@@ -710,18 +774,16 @@ with left:
             placeholder="Water, Glycerin, Niacinamide, Fragrance, ...",
             label_visibility="collapsed",
         )
-
-    st.markdown("---")
-    st.markdown("##### Ingredient Text Color")
-    ing_text_color = st.color_picker("Ingredient name color", "#1a1714")
-    st.markdown(
-        f'<style>.ing-name {{ color: {ing_text_color} !important; }} '
-        f'.ing-reason {{ color: {ing_text_color}99 !important; }}</style>',
-        unsafe_allow_html=True
-    )
+        run_on_enter = False
 
     st.markdown("")
-    run = st.button("Analyze Ingredients")
+    run = st.button("Analyze Ingredients") or (
+        input_mode == "Search by product name" and
+        product_name.strip() and
+        st.session_state.get("_submitted_query") != product_name
+    )
+    if run and product_name:
+        st.session_state["_submitted_query"] = product_name
 
 with right:
     if run:
@@ -749,6 +811,7 @@ with right:
                 st.stop()
             ingredients = [i.strip() for i in manual_list.split(",") if i.strip()]
             st.success(f"Loaded **{len(ingredients)} ingredients**")
+
 
         with st.spinner("Running AI + database analysis…"):
             results = analyze(ingredients, conditions)
@@ -809,12 +872,36 @@ with right:
   <div class="summary-stat"><div class="summary-num" style="color:#9E9189;">{t - r - g}</div><div class="summary-desc">Neutral</div></div>
 </div>''', unsafe_allow_html=True)
         st.markdown("")
+
+        # ── FULL INGREDIENT LIST (colour-coded) ───
+        red_names   = {item["name"].lower() for item in results["red"]}
+        green_names = {item["name"].lower() for item in results["green"]}
+        pills = []
+        for ing in ingredients:
+            ing_l = ing.lower().strip()
+            if ing_l in red_names:
+                style = "background:rgba(224,128,128,0.15);border:1px solid rgba(224,128,128,0.35);color:#E08080;"
+            elif ing_l in green_names:
+                style = "background:rgba(110,201,143,0.15);border:1px solid rgba(110,201,143,0.35);color:#6EC98F;"
+            else:
+                style = "background:rgba(196,164,132,0.08);border:1px solid rgba(196,164,132,0.18);color:#9E9189;"
+            pills.append(
+                f'<span style="display:inline-block;{style}border-radius:20px;padding:3px 12px;' +
+                f'font-size:0.82rem;margin:3px 3px 3px 0;font-family:Cormorant Garamond,serif;line-height:1.8;">' +
+                f'{ing.title()}</span>'
+            )
+        pills_html = " ".join(pills)
+        with st.expander(f"Full ingredient list — {len(ingredients)} ingredients"):
+            st.markdown(
+                '<p style="font-size:0.72rem;color:#6B5B4E;letter-spacing:0.1em;text-transform:uppercase;' +
+                'margin-bottom:0.8rem;">Red = concerning · Green = beneficial · Grey = neutral</p>' +
+                pills_html,
+                unsafe_allow_html=True
+            )
+
         st.caption("SaveFace.io does not replace medical advice. Always consult a board-certified dermatologist.")
     else:
-        st.markdown('<div class="card" style="text-align:center;padding:3rem 1.5rem;">', unsafe_allow_html=True)
-        st.markdown("### Results will appear here")
-        st.markdown("Select your conditions, enter a product or ingredient list, then click **Analyze**.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<p style=\"color:#6B5B4E;font-size:1.1rem;margin-top:2rem;\">Results will appear here once you analyze a product.</p>", unsafe_allow_html=True)
 
 # ── SIDEBAR ───────────────────────────────────
 with st.sidebar:
